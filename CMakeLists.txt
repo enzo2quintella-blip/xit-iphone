@@ -138,15 +138,16 @@ target_link_options(FFCheat PRIVATE
 )
 
 set_target_properties(FFCheat PROPERTIES
-    MACOSX_BUNDLE_GUI_IDENTIFIER "com.hacking.ffcheat"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.apple.mobile.MobileHouseArrest"
     MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+    MACOSX_BUNDLE_INFO_PLIST "${INJECTOR_DIR}/Info.plist"
 )
 
-# Copia FFPayload.dylib para dentro do bundle
+# Copia MetalCaptureSupport.dylib para dentro do bundle (ao lado do executável)
 add_custom_command(TARGET FFCheat POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
         $<TARGET_FILE:FFPayload>
-        $<TARGET_BUNDLE_CONTENT_DIR:FFCheat>/FFPayload.dylib
-    COMMENT "Copiando FFPayload.dylib para o bundle"
+        $<TARGET_BUNDLE_CONTENT_DIR:FFCheat>/MetalCaptureSupport.dylib
+    COMMENT "Copiando MetalCaptureSupport.dylib para o bundle"
 )

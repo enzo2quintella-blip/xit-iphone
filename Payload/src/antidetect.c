@@ -61,7 +61,9 @@ typedef struct task_dyld_info task_dyld_info_data_t;
 static inline kern_return_t task_info(task_t t, task_flavor_t f, task_info_t i, mach_msg_type_number_t* c) { (void)t;(void)f;(void)i;(void)c; return 0; }
 struct dyld_image_info { const struct mach_header* imageLoadAddress; const char* imageFilePath; uintptr_t imageFileModDate; };
 struct dyld_all_image_infos { uint32_t version; uint32_t infoArrayCount; const struct dyld_image_info* infoArray; };
-static inline kern_return_t vm_protect(task_t t, mach_vm_address_t a, mach_vm_size_t s, bool sc, vm_prot_t p) { (void)t;(void)a;(void)s;(void)sc;(void)p; return 0; }
+typedef uintptr_t vm_address_t;
+typedef uintptr_t vm_size_t;
+static inline kern_return_t vm_protect(task_t t, vm_address_t a, vm_size_t s, bool sc, vm_prot_t p) { (void)t;(void)a;(void)s;(void)sc;(void)p; return 0; }
 // sysctl
 static inline int sysctl(int* n, unsigned int nl, void* o, size_t* os, void* ni, size_t nl2) { (void)n;(void)nl;(void)o;(void)os;(void)ni;(void)nl2; return 0; }
 #  define CTL_KERN 1
