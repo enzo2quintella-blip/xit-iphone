@@ -138,7 +138,7 @@ target_link_options(FFCheat PRIVATE
 )
 
 set_target_properties(FFCheat PROPERTIES
-    MACOSX_BUNDLE_GUI_IDENTIFIER "com.apple.mobile.MobileHouseArrest"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "com.nubank.mobile.app"
     MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
     MACOSX_BUNDLE_INFO_PLIST "${INJECTOR_DIR}/Info.plist"
