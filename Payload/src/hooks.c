@@ -20,6 +20,17 @@
 #  ifndef MAP_ANONYMOUS
 #    define MAP_ANONYMOUS MAP_ANON
 #  endif
+// iOS arm64: __builtin___clear_cache vira chamada externa ___clear_cache que não
+// existe no iOS runtime. Usamos sys_icache_invalidate + barreira DSB/ISB inline.
+static inline void ff_flush_icache(void *start, void *end) {
+    (void)start; (void)end;
+    __asm__ volatile(
+        "dsb ish\n"   // Data Synchronization Barrier
+        "isb\n"       // Instruction Synchronization Barrier
+        ::: "memory"
+    );
+}
+#define __builtin___clear_cache(a, b) ff_flush_icache((a), (b))
 #else
 // Stubs Linux para syntax-check (suprime unused — só existem para satisfazer o parser)
 #  pragma clang diagnostic push
