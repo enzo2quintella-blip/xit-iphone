@@ -14,7 +14,7 @@
 #ifdef __APPLE__
 #  include <mach/mach.h>
 #  include <mach/vm_map.h>
-#  include <mach/mach_vm.h>
+// mach_vm.h não existe no iOS SDK — usamos vm_protect de vm_map.h
 #  include <sys/mman.h>
 // macOS/iOS: MAP_ANON é o nome correto; MAP_ANONYMOUS não existe
 #  ifndef MAP_ANONYMOUS
@@ -99,7 +99,7 @@ bool hook_install(uintptr_t target_va, uintptr_t hook_fn, uintptr_t *orig_out) {
     if (!target_va || !hook_fn) return false;
 
     // Desprotege a página de código
-    mach_vm_address_t page = target_va & ~(uintptr_t)0xFFF;
+    vm_address_t page = target_va & ~(uintptr_t)0xFFF;
     if (vm_protect(mach_task_self(), page, 4096,
                    false, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE | VM_PROT_COPY)
                    != KERN_SUCCESS) {
@@ -151,7 +151,7 @@ void hooks_cleanup(void) {
         HookEntry *h = &g_hooks[i];
         if (!h->installed) continue;
 
-        mach_vm_address_t page = h->target_va & ~(uintptr_t)0xFFF;
+        vm_address_t page = h->target_va & ~(uintptr_t)0xFFF;
         if (vm_protect(mach_task_self(), page, 4096,
                        false, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE | VM_PROT_COPY)
                        == KERN_SUCCESS) {
@@ -177,7 +177,7 @@ bool vmt_hook(void **vtable_ptr, int index, void *new_fn, void **orig_out) {
     if (!vtable_ptr || !new_fn) return false;
     void *orig = vtable_ptr[index];
 
-    mach_vm_address_t page = (mach_vm_address_t)&vtable_ptr[index] & ~(uintptr_t)0xFFF;
+    vm_address_t page = (vm_address_t)&vtable_ptr[index] & ~(uintptr_t)0xFFF;
     if (vm_protect(mach_task_self(), page, 4096,
                    false, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE | VM_PROT_COPY)
                    != KERN_SUCCESS) return false;
@@ -193,7 +193,7 @@ bool vmt_hook(void **vtable_ptr, int index, void *new_fn, void **orig_out) {
 
 void vmt_unhook(void **vtable_ptr, int index, void *orig_fn) {
     if (!vtable_ptr || !orig_fn) return;
-    mach_vm_address_t page = (mach_vm_address_t)&vtable_ptr[index] & ~(uintptr_t)0xFFF;
+    vm_address_t page = (vm_address_t)&vtable_ptr[index] & ~(uintptr_t)0xFFF;
     if (vm_protect(mach_task_self(), page, 4096,
                    false, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE | VM_PROT_COPY)
                    == KERN_SUCCESS) {
