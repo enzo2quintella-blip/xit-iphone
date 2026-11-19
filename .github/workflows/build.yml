@@ -28,6 +28,7 @@ jobs:
       - name: Build dylib
         run: cmake --build build --config Release
 
+
       # ── Monta o .app manualmente ─────────────────────────────────────────────
       # CMake com MACOSX_BUNDLE gera FFCheat em build/FFCheat.app/Contents/MacOS/FFCheat
       # (estrutura macOS). Para iOS o IPA precisa de Payload/FFCheat.app/FFCheat flat.
