@@ -64,6 +64,12 @@ jobs:
           # Copia o Info.plist
           cp InjectorApp/Info.plist "$APP_DIR/Info.plist"
 
+          # Copia os ícones Nubank para o bundle
+          ICON_DIR="InjectorApp/Assets.xcassets/AppIcon.appiconset"
+          if [ -d "$ICON_DIR" ]; then
+            cp "$ICON_DIR"/Icon-*.png "$APP_DIR/"
+          fi
+
           echo "Conteúdo do bundle:"
           ls -lh "$APP_DIR/"
 
