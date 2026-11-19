@@ -1,0 +1,6 @@
+dump_work/UnityFramework
+dump_work/global-metadata.dat
+Tools/__pycache__/
+*.pyc
+build/
+*.ipa
