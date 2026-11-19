@@ -43,12 +43,18 @@ endif()
 
 string(JOIN " " COMMON_FLAGS_STR ${COMMON_FLAGS})
 
-# ─── KernelExploit (stub) — linkado como objeto ───────────────────────────────
+# ─── KernelExploit — implementação real ──────────────────────────────────────
+# kexploit_impl.c: socket spray + IOSurface KRW + sandbox escape (iOS 17-26.x)
+# kexploit_stub.c: fallback que retorna KE_NOT_AVAILABLE (mantido para debug)
 add_library(kexploit_stub STATIC
-    ${KEXPLOIT_DIR}/src/kexploit_stub.c
+    ${KEXPLOIT_DIR}/src/kexploit_impl.c
 )
 target_include_directories(kexploit_stub PUBLIC ${KEXPLOIT_DIR}/include)
 target_compile_options(kexploit_stub PRIVATE ${COMMON_FLAGS})
+target_link_libraries(kexploit_stub PUBLIC
+    "-framework IOSurface"
+    "-framework CoreFoundation"
+)
 
 # ─── Payload dylib ────────────────────────────────────────────────────────────
 add_library(FFPayload SHARED
@@ -127,6 +133,8 @@ target_link_libraries(FFCheat PRIVATE
     kexploit_stub
     "-framework UIKit"
     "-framework Foundation"
+    "-framework IOSurface"
+    "-framework CoreFoundation"
 )
 
 # Adiciona @rpath apontando para o diretório do executável.

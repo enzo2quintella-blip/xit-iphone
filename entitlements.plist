@@ -30,5 +30,13 @@
     <!-- Permite listar e acessar containers de apps instalados -->
     <key>com.apple.private.MobileContainerManager.allowed</key>
     <true/>
+
+    <!-- Permite task_for_pid(0) para acesso ao kernel task port -->
+    <key>com.apple.private.security.developer-mode</key>
+    <true/>
+
+    <!-- IOSurface com páginas wired para o exploit -->
+    <key>com.apple.private.iosurface.client</key>
+    <true/>
 </dict>
 </plist>
