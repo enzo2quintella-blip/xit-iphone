@@ -125,7 +125,6 @@ target_compile_options(FFCheat PRIVATE ${COMMON_FLAGS})
 
 target_link_libraries(FFCheat PRIVATE
     kexploit_stub
-    FFPayload
     "-framework UIKit"
     "-framework Foundation"
 )
