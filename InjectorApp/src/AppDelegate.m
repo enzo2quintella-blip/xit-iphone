@@ -1,121 +1,55 @@
-// AppDelegate.m — Patcher via container_query (sem jailbreak)
-// Mecanismo idêntico ao DOPE:
-//   1. container_query_* resolve o path do container do Free Fire pelo bundle ID
+// AppDelegate.m — Patcher via metadata scan (sem jailbreak, sem API privada)
+// Mecanismo:
+//   1. Varre /private/var/mobile/Containers/Data/Application/*/
+//      lendo .com.apple.mobile_container_manager.metadata.plist
+//      para encontrar o container de dados do Free Fire pelo bundle ID
 //   2. Baixa Assembly-CSharp-patch.bytes do servidor
 //   3. Escreve dentro de Documents/ do container do Free Fire
 //   4. Free Fire carrega o patch na próxima execução
+//
+// NOTA: container_query API privada foi removida — retorna xpc_object_t em iOS 26
+// que não é CFDictionaryRef, causando SIGTRAP em CFDictionaryGetValue.
+// O scan de metadata é mais robusto e não depende de API que muda entre versões.
 
 #import "AppDelegate.h"
 #import <UIKit/UIKit.h>
-#import <CoreFoundation/CoreFoundation.h>
-#import <dlfcn.h>
 
-// ─── container_query API privada ─────────────────────────────────────────────
-// Tipos opacos C — NÃO são objetos ObjC. Usar CFTypeRef/CFArrayRef, nunca NSArray*.
-// ARM64e tem PAC: passar NSArray* onde a função espera xpc_object_t/CFArrayRef
-// corrompe ponteiros e causa EXC_BAD_ACCESS com "pointer authentication failure".
-typedef void* MCMContainerQuery;
-
-#define CONTAINER_CLASS_APP  2
-#define CONTAINER_FLAGS_PATH (1 << 0)
-
-static MCMContainerQuery (*fn_query_create)(void)                              = NULL;
-static void              (*fn_query_set_class)(MCMContainerQuery, int)         = NULL;
-// set_identifiers recebe CFArrayRef (não NSArray* — são bridge-free em C puro)
-static void              (*fn_query_set_ids)(MCMContainerQuery, CFArrayRef)    = NULL;
-static void              (*fn_query_op_flags)(MCMContainerQuery, int, int)     = NULL;
-// get_single_result retorna CFDictionaryRef (xpc dict), não NSDictionary*
-static CFDictionaryRef   (*fn_query_single)(MCMContainerQuery, int*)           = NULL;
-static void              (*fn_query_free)(MCMContainerQuery)                   = NULL;
-
-static BOOL load_container_api(void) {
-    void *lib = dlopen("/usr/lib/system/libsystem_containermanager.dylib",
-                       RTLD_LAZY | RTLD_NOLOAD);
-    if (!lib) lib = dlopen("/usr/lib/system/libsystem_containermanager.dylib", RTLD_LAZY);
-    if (!lib) return NO;
-
-    fn_query_create   = dlsym(lib, "container_query_create");
-    fn_query_set_class= dlsym(lib, "container_query_set_class");
-    fn_query_set_ids  = dlsym(lib, "container_query_set_identifiers");
-    fn_query_op_flags = dlsym(lib, "container_query_operation_set_flags");
-    fn_query_single   = dlsym(lib, "container_query_get_single_result");
-    fn_query_free     = dlsym(lib, "container_query_free");
-
-    return (fn_query_create && fn_query_set_class && fn_query_set_ids &&
-            fn_query_op_flags && fn_query_single && fn_query_free);
-}
-
-// ─── Resolve container path via metadata scan ────────────────────────────────
-// Varre /private/var/containers/Bundle/Application/*/
-// procurando o .com.apple.mobile_container_manager.metadata.plist
-// com CFBundleIdentifier = bundleID
+// ─── Resolve container de dados via metadata scan ────────────────────────────
+// Varre /private/var/mobile/Containers/Data/Application/*/
+// lendo .com.apple.mobile_container_manager.metadata.plist
+// procurando MCMMetadataIdentifier == bundleID
+// Retorna o path raiz do container (ex: /private/var/mobile/Containers/Data/Application/<UUID>)
 static NSString* resolve_container_path_scan(NSString *bundleID) {
-    NSString *appsRoot = @"/private/var/containers/Bundle/Application";
+    // Container de dados (onde fica Documents/, Library/, etc.)
+    NSString *dataRoot = @"/private/var/mobile/Containers/Data/Application";
     NSFileManager *fm = [NSFileManager defaultManager];
-    NSError *err = nil;
-    NSArray *uuids = [fm contentsOfDirectoryAtPath:appsRoot error:&err];
-    if (!uuids) return nil;
+    NSError *listErr = nil;
+
+    NSArray *uuids = [fm contentsOfDirectoryAtPath:dataRoot error:&listErr];
+    if (!uuids || uuids.count == 0) {
+        NSLog(@"[Nubank] Falha ao listar %@: %@", dataRoot,
+              listErr.localizedDescription ?: @"nil");
+        return nil;
+    }
 
     for (NSString *uuid in uuids) {
         NSString *meta = [NSString stringWithFormat:
             @"%@/%@/.com.apple.mobile_container_manager.metadata.plist",
-            appsRoot, uuid];
-        NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:meta];
-        if ([d[@"MCMMetadataIdentifier"] isEqualToString:bundleID]) {
-            // Container de dados fica em /private/var/mobile/Containers/Data/Application/<uuid>
-            // Precisa buscar nessa árvore também
-            break;
-        }
-    }
-
-    // Busca no container de dados
-    NSString *dataRoot = @"/private/var/mobile/Containers/Data/Application";
-    NSArray *dataUUIDs = [fm contentsOfDirectoryAtPath:dataRoot error:&err];
-    if (!dataUUIDs) return nil;
-
-    for (NSString *uuid in dataUUIDs) {
-        NSString *meta = [NSString stringWithFormat:
-            @"%@/%@/.com.apple.mobile_container_manager.metadata.plist",
             dataRoot, uuid];
+
         NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:meta];
-        if ([d[@"MCMMetadataIdentifier"] isEqualToString:bundleID]) {
-            return [NSString stringWithFormat:@"%@/%@", dataRoot, uuid];
+        if (!d) continue;
+
+        NSString *identifier = d[@"MCMMetadataIdentifier"];
+        if ([identifier isEqualToString:bundleID]) {
+            NSString *result = [NSString stringWithFormat:@"%@/%@", dataRoot, uuid];
+            NSLog(@"[Nubank] Container encontrado: %@", result);
+            return result;
         }
     }
+
+    NSLog(@"[Nubank] Bundle ID %@ não encontrado em %@", bundleID, dataRoot);
     return nil;
-}
-
-// ─── Resolve via container_query API (C puro, sem ObjC messaging no resultado)
-static NSString* resolve_container_path_api(NSString *bundleID) {
-    if (!load_container_api()) return nil;
-
-    MCMContainerQuery q = fn_query_create();
-    if (!q) return nil;
-
-    // Passa CFArrayRef com CFStringRef — nunca NSArray* aqui
-    CFStringRef cfBundleID = (__bridge CFStringRef)bundleID;
-    CFArrayRef  cfIDs      = CFArrayCreate(NULL, (const void **)&cfBundleID, 1,
-                                           &kCFTypeArrayCallBacks);
-    fn_query_set_class(q, CONTAINER_CLASS_APP);
-    fn_query_set_ids(q, cfIDs);
-    CFRelease(cfIDs);
-    fn_query_op_flags(q, 0, CONTAINER_FLAGS_PATH);
-
-    int err = 0;
-    CFDictionaryRef result = fn_query_single(q, &err);
-    fn_query_free(q);
-
-    if (!result || err != 0) return nil;
-
-    // resultado é CFDictionaryRef — acessa via CF, não ObjC subscript
-    NSString *path = nil;
-    CFStringRef cfPath = CFDictionaryGetValue(result, CFSTR("path"));
-    if (!cfPath) cfPath = CFDictionaryGetValue(result, CFSTR("containerPath"));
-    if (cfPath && CFGetTypeID(cfPath) == CFStringGetTypeID()) {
-        path = (__bridge NSString*)cfPath;
-    }
-    CFRelease(result);
-    return path;
 }
 
 // ─── Baixa dados de uma URL ───────────────────────────────────────────────────
@@ -184,11 +118,8 @@ static NSData* download_sync(NSString *urlStr) {
 
     [self setStatus:statusLabel text:@"Localizando Free Fire..."];
 
-    // 1. container_query API (C puro, CFArrayRef) com fallback para metadata scan
-    NSString *containerPath = resolve_container_path_api(ffBundleID);
-    if (!containerPath) {
-        containerPath = resolve_container_path_scan(ffBundleID);
-    }
+    // 1. Localiza container de dados via metadata scan
+    NSString *containerPath = resolve_container_path_scan(ffBundleID);
 
     if (!containerPath) {
         [self setStatus:statusLabel text:@"Free Fire não encontrado. Instale o jogo primeiro."];
