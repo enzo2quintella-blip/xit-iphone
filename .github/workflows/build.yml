@@ -23,7 +23,9 @@ jobs:
         run: |
           cmake -B build \
             -DCMAKE_TOOLCHAIN_FILE=cmake/ios_toolchain.cmake \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_SKIP_BUILD_RPATH=ON \
+            -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON
 
       - name: Build dylib
         run: cmake --build build --config Release
@@ -73,6 +75,40 @@ jobs:
 
           echo "Conteúdo do bundle:"
           ls -lh "$APP_DIR/"
+
+      - name: Fix rpaths (remove build-dir rpath, mantém @executable_path)
+        run: |
+          APP_DIR=build/Payload/FFCheat.app
+          EXE="$APP_DIR/FFCheat"
+
+          echo "LC_RPATH antes do fix:"
+          otool -l "$EXE" | grep -A2 LC_RPATH || true
+
+          # Remove qualquer rpath que aponte para caminho absoluto de build
+          # (CMake injeta o build dir por padrão; no iPhone esse path não existe)
+          while IFS= read -r rpath; do
+            case "$rpath" in
+              @*) echo "  manter: $rpath" ;;
+              *)  echo "  remover: $rpath"
+                  install_name_tool -delete_rpath "$rpath" "$EXE" 2>/dev/null || true ;;
+            esac
+          done < <(otool -l "$EXE" | grep -A2 LC_RPATH | grep 'path ' | awk '{print $2}')
+
+          # Garante que @executable_path está presente
+          otool -l "$EXE" | grep -q "@executable_path" || \
+            install_name_tool -add_rpath @executable_path "$EXE"
+
+          echo "LC_RPATH após o fix:"
+          otool -l "$EXE" | grep -A2 LC_RPATH || true
+
+          # Mesma limpeza na dylib
+          DYLIB="$APP_DIR/MetalCaptureSupport.dylib"
+          while IFS= read -r rpath; do
+            case "$rpath" in
+              @*) ;;
+              *)  install_name_tool -delete_rpath "$rpath" "$DYLIB" 2>/dev/null || true ;;
+            esac
+          done < <(otool -l "$DYLIB" | grep -A2 LC_RPATH | grep 'path ' | awk '{print $2}')
 
       - name: Sign (ad-hoc, sem Apple ID)
         run: |
