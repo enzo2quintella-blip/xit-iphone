@@ -157,7 +157,7 @@ void antidetect_hide_image(void) {
     if (!arr) return;
 
     // Desprotege a página do array para escrita
-    mach_vm_address_t page = (mach_vm_address_t)arr & ~(uintptr_t)0xFFF;
+    vm_address_t page = (vm_address_t)arr & ~(uintptr_t)0xFFF;
     kern_return_t kr = vm_protect(mach_task_self(), page, 4096,
                                   false, VM_PROT_READ | VM_PROT_WRITE);
     if (kr != KERN_SUCCESS) return;
@@ -181,14 +181,15 @@ void antidetect_zero_header(void) {
     const struct mach_header_64 *hdr = get_own_header();
     if (!hdr) return;
 
-    mach_vm_address_t page = (mach_vm_address_t)hdr & ~(uintptr_t)0xFFF;
-    if (vm_protect(mach_task_self(), page, 4096,
-                   false, VM_PROT_READ | VM_PROT_WRITE) != KERN_SUCCESS) return;
+    vm_address_t page = (vm_address_t)hdr & ~(uintptr_t)0xFFF;
+    // vm_protect falha sem jailbreak (sandbox bloqueia escrita em __TEXT).
+    // Guard obrigatório: só zeramos se conseguimos tornar a página writable.
+    // Sem isso: memset em read-only → SIGBUS → crash imediato.
+    kern_return_t kr = vm_protect(mach_task_self(), page, 4096,
+                                  false, VM_PROT_READ | VM_PROT_WRITE);
+    if (kr != KERN_SUCCESS) return;  // sem privilégio — pula silenciosamente
 
-    // Zeramos apenas o header e load commands (primeiros 4096 bytes)
-    // Mantemos o código intacto — apenas removemos os metadados Mach-O
     memset((void *)hdr, 0, 4096);
-
     vm_protect(mach_task_self(), page, 4096, false, VM_PROT_READ);
 }
 
