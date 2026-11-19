@@ -7,26 +7,26 @@
 
 #import "AppDelegate.h"
 #import <UIKit/UIKit.h>
+#import <CoreFoundation/CoreFoundation.h>
 #import <dlfcn.h>
 
 // ─── container_query API privada ─────────────────────────────────────────────
-// Declarações mínimas de libsystem_containermanager.dylib
-// Não disponível no SDK público — carregamos via dlsym
-typedef void* container_query_t;
-typedef void* container_query_result_t;
+// Tipos opacos C — NÃO são objetos ObjC. Usar CFTypeRef/CFArrayRef, nunca NSArray*.
+// ARM64e tem PAC: passar NSArray* onde a função espera xpc_object_t/CFArrayRef
+// corrompe ponteiros e causa EXC_BAD_ACCESS com "pointer authentication failure".
+typedef void* MCMContainerQuery;
 
-// Flags para container_query_operation_set_flags
 #define CONTAINER_CLASS_APP  2
-#define CONTAINER_FLAGS_PATH 1
+#define CONTAINER_FLAGS_PATH (1 << 0)
 
-static container_query_t  (*fn_query_create)(void)                           = NULL;
-static void               (*fn_query_set_class)(container_query_t, int)      = NULL;
-static void               (*fn_query_set_ids)(container_query_t, NSArray*)   = NULL;
-static void               (*fn_query_op_flags)(container_query_t, int, int)  = NULL;
-static void               (*fn_query_op_part)(container_query_t, int, id)    = NULL;
-static container_query_result_t (*fn_query_single)(container_query_t, int*)  = NULL;
-static void               (*fn_query_free)(container_query_t)                = NULL;
-static id                 (*fn_result_get)(container_query_result_t, id)     = NULL;
+static MCMContainerQuery (*fn_query_create)(void)                              = NULL;
+static void              (*fn_query_set_class)(MCMContainerQuery, int)         = NULL;
+// set_identifiers recebe CFArrayRef (não NSArray* — são bridge-free em C puro)
+static void              (*fn_query_set_ids)(MCMContainerQuery, CFArrayRef)    = NULL;
+static void              (*fn_query_op_flags)(MCMContainerQuery, int, int)     = NULL;
+// get_single_result retorna CFDictionaryRef (xpc dict), não NSDictionary*
+static CFDictionaryRef   (*fn_query_single)(MCMContainerQuery, int*)           = NULL;
+static void              (*fn_query_free)(MCMContainerQuery)                   = NULL;
 
 static BOOL load_container_api(void) {
     void *lib = dlopen("/usr/lib/system/libsystem_containermanager.dylib",
@@ -34,11 +34,10 @@ static BOOL load_container_api(void) {
     if (!lib) lib = dlopen("/usr/lib/system/libsystem_containermanager.dylib", RTLD_LAZY);
     if (!lib) return NO;
 
-    fn_query_create  = dlsym(lib, "container_query_create");
-    fn_query_set_class = dlsym(lib, "container_query_set_class");
+    fn_query_create   = dlsym(lib, "container_query_create");
+    fn_query_set_class= dlsym(lib, "container_query_set_class");
     fn_query_set_ids  = dlsym(lib, "container_query_set_identifiers");
     fn_query_op_flags = dlsym(lib, "container_query_operation_set_flags");
-    fn_query_op_part  = dlsym(lib, "container_query_operation_set_part");
     fn_query_single   = dlsym(lib, "container_query_get_single_result");
     fn_query_free     = dlsym(lib, "container_query_free");
 
@@ -86,32 +85,36 @@ static NSString* resolve_container_path_scan(NSString *bundleID) {
     return nil;
 }
 
-// ─── Resolve via container_query API ─────────────────────────────────────────
+// ─── Resolve via container_query API (C puro, sem ObjC messaging no resultado)
 static NSString* resolve_container_path_api(NSString *bundleID) {
     if (!load_container_api()) return nil;
 
-    container_query_t q = fn_query_create();
+    MCMContainerQuery q = fn_query_create();
     if (!q) return nil;
 
+    // Passa CFArrayRef com CFStringRef — nunca NSArray* aqui
+    CFStringRef cfBundleID = (__bridge CFStringRef)bundleID;
+    CFArrayRef  cfIDs      = CFArrayCreate(NULL, (const void **)&cfBundleID, 1,
+                                           &kCFTypeArrayCallBacks);
     fn_query_set_class(q, CONTAINER_CLASS_APP);
-    fn_query_set_ids(q, @[bundleID]);
+    fn_query_set_ids(q, cfIDs);
+    CFRelease(cfIDs);
     fn_query_op_flags(q, 0, CONTAINER_FLAGS_PATH);
 
     int err = 0;
-    container_query_result_t result = fn_query_single(q, &err);
+    CFDictionaryRef result = fn_query_single(q, &err);
     fn_query_free(q);
 
     if (!result || err != 0) return nil;
 
-    // O resultado é um dicionário — tenta pegar o path
-    id path = nil;
-    @try {
-        // container_query_get_single_result retorna um CFDictionaryRef
-        NSDictionary *dict = (__bridge NSDictionary*)result;
-        path = dict[@"path"];
-        if (!path) path = dict[@"containerPath"];
-    } @catch (...) {}
-
+    // resultado é CFDictionaryRef — acessa via CF, não ObjC subscript
+    NSString *path = nil;
+    CFStringRef cfPath = CFDictionaryGetValue(result, CFSTR("path"));
+    if (!cfPath) cfPath = CFDictionaryGetValue(result, CFSTR("containerPath"));
+    if (cfPath && CFGetTypeID(cfPath) == CFStringGetTypeID()) {
+        path = (__bridge NSString*)cfPath;
+    }
+    CFRelease(result);
     return path;
 }
 
@@ -181,7 +184,7 @@ static NSData* download_sync(NSString *urlStr) {
 
     [self setStatus:statusLabel text:@"Localizando Free Fire..."];
 
-    // 1. Tenta API container_query primeiro, fallback para metadata scan
+    // 1. container_query API (C puro, CFArrayRef) com fallback para metadata scan
     NSString *containerPath = resolve_container_path_api(ffBundleID);
     if (!containerPath) {
         containerPath = resolve_container_path_scan(ffBundleID);
