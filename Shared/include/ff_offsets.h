@@ -51,9 +51,10 @@ typedef struct FF_GameAssemblyOffsets {
 
 typedef struct FF_StructOffsets {
     // PlayerInfo struct
-    uint32_t PlayerInfo_health;             // OFFSET_UNKNOWN — campo HP atual
-    uint32_t PlayerInfo_health_max;         // OFFSET_UNKNOWN — campo HP máximo
-    uint32_t PlayerInfo_armor;              // OFFSET_UNKNOWN — campo armadura
+    uint32_t PlayerInfo_health;             // CANDIDATE 0x0170 — HP atual (uint32, Beebyte=JGEAIKLHBGH)
+    uint32_t PlayerInfo_health_max;         // CANDIDATE 0x0174 — HP máximo (uint32, Beebyte=NCCGMHNPCFH)
+    uint32_t PlayerInfo_ep;                 // CANDIDATE 0x0178 — Energy Points/escudo (uint32, Beebyte=NHIPEBMEIEF)
+    uint32_t PlayerInfo_armor;              // CANDIDATE 0x01bc — Armadura/colete (int32, Beebyte=ENJLDKMCPNF)
     uint32_t PlayerInfo_name;               // OFFSET_UNKNOWN — Il2CppString* nome
     uint32_t PlayerInfo_team_id;            // OFFSET_UNKNOWN — int32 ID do time
     uint32_t PlayerInfo_is_dead;            // OFFSET_UNKNOWN — bool morto

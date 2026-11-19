@@ -19,7 +19,8 @@ typedef struct {
     float box_x, box_y, box_w, box_h;  // em pixels
     // Health bar: posição absoluta (esquerda da caixa)
     float hp_ratio;   // 0..1
-    float armor_ratio;// 0..1
+    float armor_ratio;// 0..1  (Armor / 200.0)
+    float ep_ratio;   // 0..1  (EP / 50.0 — Energy Points Free Fire = 0..50)
     // Label
     char  label[96];  // nome + distância
     // Snap line: origem é o centro-inferior da caixa, destino = centro da tela inferior
@@ -143,8 +144,12 @@ void esp_render(const Matrix4x4 *vp, Vec3 camera_pos,
         // HP ratio
         e->hp_ratio    = (p->health_max > 0.0f)
                          ? clampf(p->health / p->health_max, 0.0f, 1.0f) : 0.0f;
+        // Armor do Free Fire: Colete Nível 3 = 190 durabilidade máxima.
+        // Usar 200.0f como divisor para normalizar corretamente.
         e->armor_ratio = (p->armor > 0.0f)
-                         ? clampf(p->armor / 100.0f, 0.0f, 1.0f) : 0.0f;
+                         ? clampf(p->armor / 200.0f, 0.0f, 1.0f) : 0.0f;
+        // EP (Energy Points): 0..50. Usado como escudo temporário antes do HP.
+        e->ep_ratio    = clampf(p->ep / 50.0f, 0.0f, 1.0f);
 
         // Label
         if (g_esp.names && g_esp.distance)

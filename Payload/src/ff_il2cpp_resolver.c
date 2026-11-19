@@ -12,6 +12,27 @@
 //   "VerticleGunController" ns="COW.GamePlay" typedef[35516] — tem BulletsRemainingInMag, BulletsPerMag
 //   "PlayerData"          ns="COW"           typedef[25172]  — tem isDead, nickname, teamId, lastPosition
 //
+// Nomes Beebyte confirmados para campos vitais do Player (análise estática,
+// build UUID=E50B0E3A-D931-385B-9E4C-9FFDE6D1B923, global-metadata.dat v31):
+//   HP      (campo[29], uint32) = "JGEAIKLHBGH"   @ offset 0x0170
+//   MaxHP   (campo[30], uint32) = "NCCGMHNPCFH"   @ offset 0x0174
+//   EP      (campo[31], uint32) = "NHIPEBMEIEF"   @ offset 0x0178
+//   Armor   (campo[41], int32)  = "ENJLDKMCPNF"   @ offset 0x01bc
+//   ArmorAlt(campo[42], int32)  = "HOGOOMLEBGA"   @ offset 0x01c0
+//   HPFloat (campo[128],float)  = "PBHPNOKABCP"   @ offset 0x02fc  (cached/interpolado UI)
+//   Speed   (campo[242],float)  = "Speed"          @ offset 0x0560  (nome legível)
+//   OriginalNickName (campo[196],string) = "OriginalNickName" @ offset 0x0498
+//   TeamModeID (campo[183],uint32)  = "TeamModeID"  @ offset 0x0434
+//   IsClientBot (campo[197],bool)   = "IsClientBot" @ offset 0x04a0  (true=bot, não local player)
+//   IsPersonaEPDown (campo[139],bool) = "IsPersonaEPDown" @ offset 0x0331
+//   IsPersonaEPUp   (campo[140],bool) = "IsPersonaEPUp"   @ offset 0x0332
+//   m_KnockDownDamagePerSec (campo[163],uint32) = "m_KnockDownDamagePerSec" @ offset 0x03ac
+//   m_GetInVehicle (campo[216],bool) = "m_GetInVehicle" @ offset 0x04f8
+//   JumpCount  (campo[71],int32) = "JumpCount"  @ offset 0x025c
+//
+// CANDIDATOS — requerem verificação em-jogo (nomes obfuscados, ID por posição/tipo).
+// MEASURED_BY_NAME — ID por nome legível, alta confiança.
+//
 // Exports il2cpp confirmados (RVAs medidos do UnityFramework):
 //   il2cpp_domain_get              @ 0xA111B28
 //   il2cpp_domain_get_assemblies   @ 0xA111B34
@@ -260,13 +281,21 @@ static bool field_is_ref_or_obj(FieldInfo* fi) {
 //   6. Para PlayerData.nickname, teamId, isDead: usar PlayerData.
 // ---------------------------------------------------------------------------
 
-#define MAX_FLOAT_FIELDS 32
-#define MAX_INT_FIELDS   32
-#define MAX_REF_FIELDS   32
-#define MAX_BOOL_FIELDS  16
+// ---------------------------------------------------------------------------
+// resolve_player: usa nomes Beebyte confirmados por análise estática do build
+// UUID=E50B0E3A-D931-385B-9E4C-9FFDE6D1B923.
+//
+// Primeira tentativa: lookup direto por nome (O(1), determinístico).
+// Fallback: heurística de ordem de tipo se o nome não for encontrado
+// (protege contra variações de build em que o Beebyte renomeia diferente).
+// ---------------------------------------------------------------------------
+
+// Sorted-offset list usada pelo fallback heurístico.
+#define MAX_TYPED_FIELDS 64
 
 typedef struct {
-    int32_t off[MAX_FLOAT_FIELDS]; int n;
+    int32_t off[MAX_TYPED_FIELDS];
+    int n;
 } OffList;
 
 static void offlist_insert_sorted(OffList* l, int32_t off, int max) {
@@ -276,7 +305,62 @@ static void offlist_insert_sorted(OffList* l, int32_t off, int max) {
     l->off[i] = off;
 }
 
+// Nomes Beebyte confirmados para campos de stats vitais do Player.
+// Fonte: análise estática do build UUID=E50B0E3A-D931-385B-9E4C-9FFDE6D1B923,
+// global-metadata.dat v31. Marcados CANDIDATE — verificar em-jogo.
+static const char* s_beebyte_HP[]       = { "JGEAIKLHBGH",  NULL };  // campo[29] 0x0170 uint32 CANDIDATE
+static const char* s_beebyte_MaxHP[]    = { "NCCGMHNPCFH",  NULL };  // campo[30] 0x0174 uint32 CANDIDATE
+static const char* s_beebyte_EP[]       = { "NHIPEBMEIEF",  NULL };  // campo[31] 0x0178 uint32 CANDIDATE
+static const char* s_beebyte_Armor[]    = { "ENJLDKMCPNF",  "HOGOOMLEBGA", NULL }; // campos[41..42] CANDIDATE
+// Campos com nomes legíveis preservados (MEASURED_BY_NAME):
+static const char* s_names_TeamID[]     = { "TeamModeID",   NULL };  // campo[183] 0x0434 uint32
+static const char* s_names_IsBot[]      = { "IsClientBot",  NULL };  // campo[197] 0x04a0 bool
+static const char* s_names_NickName[]   = { "OriginalNickName", "Nickname", "nickname", "Name", NULL };
+static const char* s_names_InVehicle[]  = { "m_GetInVehicle", NULL }; // campo[216] 0x04f8 bool
+static const char* s_names_Speed[]      = { "Speed", NULL };          // campo[242] 0x0560 float
+
+// field_off_null_terminated: igual a field_off_any mas com array terminado em NULL.
+static uint32_t field_off_nt(Il2CppClass* klass, const char** names) {
+    for (int i = 0; names[i]; i++) {
+        uint32_t off = field_off(klass, names[i]);
+        if (off) return off;
+    }
+    return 0;
+}
+
 static void resolve_player(Il2CppClass* klass, FF_StructOffsets* st) {
+    // ── Passo 1: lookup por nome Beebyte confirmado ──────────────────────────
+    // HP/MaxHP/EP são uint32 consecutivos @ 0x0170..0x0178.
+    uint32_t off_hp    = field_off_nt(klass, s_beebyte_HP);
+    uint32_t off_maxhp = field_off_nt(klass, s_beebyte_MaxHP);
+    uint32_t off_ep    = field_off_nt(klass, s_beebyte_EP);
+    uint32_t off_armor = field_off_nt(klass, s_beebyte_Armor);
+
+    if (off_hp)    st->PlayerInfo_health     = off_hp;
+    if (off_maxhp) st->PlayerInfo_health_max = off_maxhp;
+    if (off_ep)    st->PlayerInfo_ep         = off_ep;
+    if (off_armor) st->PlayerInfo_armor      = off_armor;
+
+    // Campos com nomes legíveis (alta confiança).
+    uint32_t off_team = field_off_nt(klass, s_names_TeamID);
+    if (off_team) st->PlayerInfo_team_id = off_team;
+
+    uint32_t off_name = field_off_nt(klass, s_names_NickName);
+    if (off_name) st->PlayerInfo_name = off_name;
+
+    uint32_t off_speed = field_off_nt(klass, s_names_Speed);
+    if (off_speed) st->CharController_moveSpeed = off_speed;
+
+    // is_dead: PlayerData.isDead é mais confiável; aqui mapeamos IsClientBot
+    // apenas como informação auxiliar (IsClientBot=true → é bot, não local player).
+    // is_dead real vem de resolve_playerdata(); não sobrescrevemos aqui.
+
+    // ── Passo 2: fallback heurístico para campos ainda não resolvidos ─────────
+    // Usado quando o build tem Beebyte diferente e os nomes acima não batem.
+    bool need_heuristic = (!st->PlayerInfo_health  || !st->PlayerInfo_health_max ||
+                           !st->PlayerInfo_transform || !st->PlayerInfo_weapon_controller);
+    if (!need_heuristic) return;
+
     OffList floats = {0}, ints = {0}, refs = {0}, bools = {0};
 
     void* iter = NULL;
@@ -286,33 +370,38 @@ static void resolve_player(Il2CppClass* klass, FF_StructOffsets* st) {
         if (off < IL2CPP_OBJECT_HEADER_SIZE) continue; // campo estático
 
         if (field_is_float(fi))
-            offlist_insert_sorted(&floats, off, MAX_FLOAT_FIELDS);
+            offlist_insert_sorted(&floats, off, MAX_TYPED_FIELDS);
         else if (field_is_int(fi))
-            offlist_insert_sorted(&ints, off, MAX_INT_FIELDS);
+            offlist_insert_sorted(&ints, off, MAX_TYPED_FIELDS);
         else if (field_is_ref_or_obj(fi))
-            offlist_insert_sorted(&refs, off, MAX_REF_FIELDS);
+            offlist_insert_sorted(&refs, off, MAX_TYPED_FIELDS);
         else {
             Il2CppType* t = g_api.field_get_type(fi);
             if (t && g_api.type_get_type(t) == IL2CPP_TYPE_BOOLEAN)
-                offlist_insert_sorted(&bools, off, MAX_BOOL_FIELDS);
+                offlist_insert_sorted(&bools, off, MAX_TYPED_FIELDS);
         }
     }
 
-    // HP = menor offset float (primeiro campo float após header)
-    // MaxHP = segundo menor offset float
-    if (floats.n >= 1) st->PlayerInfo_health     = (uint32_t)floats.off[0];
-    if (floats.n >= 2) st->PlayerInfo_health_max = (uint32_t)floats.off[1];
+    // Fallback HP: primeiro float após header, se lookup por nome falhou.
+    // NOTA: em builds sem Beebyte HP pode ser float, não uint32.
+    if (!st->PlayerInfo_health     && floats.n >= 1)
+        st->PlayerInfo_health     = (uint32_t)floats.off[0];
+    if (!st->PlayerInfo_health_max && floats.n >= 2)
+        st->PlayerInfo_health_max = (uint32_t)floats.off[1];
 
-    // TeamID = menor offset int32
-    if (ints.n >= 1) st->PlayerInfo_team_id = (uint32_t)ints.off[0];
+    // Fallback TeamID: menor int32.
+    if (!st->PlayerInfo_team_id && ints.n >= 1)
+        st->PlayerInfo_team_id = (uint32_t)ints.off[0];
 
-    // is_dead = menor offset bool
-    if (bools.n >= 1) st->PlayerInfo_is_dead = (uint32_t)bools.off[0];
+    // Fallback is_dead: menor bool.
+    if (!st->PlayerInfo_is_dead && bools.n >= 1)
+        st->PlayerInfo_is_dead = (uint32_t)bools.off[0];
 
-    // Transform = menor offset referência
-    if (refs.n >= 1) st->PlayerInfo_transform = (uint32_t)refs.off[0];
-    // Weapon controller = segundo offset referência
-    if (refs.n >= 2) st->PlayerInfo_weapon_controller = (uint32_t)refs.off[1];
+    // Fallback Transform: menor referência.
+    if (!st->PlayerInfo_transform && refs.n >= 1)
+        st->PlayerInfo_transform = (uint32_t)refs.off[0];
+    if (!st->PlayerInfo_weapon_controller && refs.n >= 2)
+        st->PlayerInfo_weapon_controller = (uint32_t)refs.off[1];
 }
 
 // ---------------------------------------------------------------------------

@@ -216,6 +216,7 @@ ff_status_t ff_offsets_load(FF_Offsets *out) {
 
     LOAD_ST(PlayerInfo_health);
     LOAD_ST(PlayerInfo_health_max);
+    LOAD_ST(PlayerInfo_ep);
     LOAD_ST(PlayerInfo_armor);
     LOAD_ST(PlayerInfo_name);
     LOAD_ST(PlayerInfo_team_id);

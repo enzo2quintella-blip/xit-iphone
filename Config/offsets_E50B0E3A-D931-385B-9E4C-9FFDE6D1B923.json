@@ -1,46 +1,178 @@
 {
   "build_uuid": "E50B0E3A-D931-385B-9E4C-9FFDE6D1B923",
   "game_version": "UNKNOWN",
-  "_note": "RVAs medidos do UnityFramework UUID=E50B0E3A-D931-385B-9E4C-9FFDE6D1B923. Campos ga.klass_* e st.* precisam de Frida em runtime (Beebyte v31). Exports il2cpp_* s\u00e3o RVAs reais do export trie.",
+  "_note": "Offsets medidos via análise estática de GameAssembly (Mach-O ARM64, size=0x0c6ff590) + global-metadata.dat (IL2CPP v31, Beebyte). VA = file_offset para todos os segmentos deste binário. Campos marcados CANDIDATE requerem verificação em-jogo (nomes obfuscados identificados por posição/tipo na tabela fieldOffsets). Campos SEM marca foram identificados por nome legível preservado pelo Beebyte.",
+
   "ga": {
-    "il2cpp_domain_get": "0xa111b28",
-    "il2cpp_domain_get_assemblies": "0xa111b34",
-    "il2cpp_assembly_get_image": "0xa1115cc",
-    "il2cpp_class_from_name": "0xa111604",
-    "il2cpp_class_get_field_from_name": "0xa111624",
-    "il2cpp_class_get_fields": "0xa111610",
-    "il2cpp_field_get_offset": "0xa111d34",
-    "il2cpp_class_get_method_from_name": "0xa111630",
-    "il2cpp_runtime_invoke": "0xa112030",
-    "il2cpp_string_new": "0xa11204c",
-    "il2cpp_object_get_class": "0xa111fd8",
-    "il2cpp_field_static_get_value": "0xa111d50",
+    "_note_ga": "RVAs medidos do export trie do UnityFramework. Todos confirmados por symtab scan.",
+    "il2cpp_domain_get":               "0xa111b28",
+    "il2cpp_domain_get_assemblies":    "0xa111b34",
+    "il2cpp_assembly_get_image":       "0xa1115cc",
+    "il2cpp_class_from_name":          "0xa111604",
+    "il2cpp_class_get_field_from_name":"0xa111624",
+    "il2cpp_class_get_fields":         "0xa111610",
+    "il2cpp_field_get_offset":         "0xa111d34",
+    "il2cpp_field_get_name":           "0xa111d28",
+    "il2cpp_field_get_type":           "0xa111d38",
+    "il2cpp_type_get_type":            "0xa111d3c",
+    "il2cpp_class_get_method_from_name":"0xa111630",
+    "il2cpp_runtime_invoke":           "0xa112030",
+    "il2cpp_string_new":               "0xa11204c",
+    "il2cpp_object_get_class":         "0xa111fd8",
+    "il2cpp_field_static_get_value":   "0xa111d50",
+    "il2cpp_field_static_set_value":   "0xa111d54",
     "il2cpp_class_is_assignable_from": "0xa1115f0",
-    "il2cpp_resolve_icall": "0xa1115a0",
-    "klass_PlayerInfo": "0xDEADC0DEDEADC0DE",
-    "klass_GameController": "0xDEADC0DEDEADC0DE",
-    "klass_WeaponController": "0xDEADC0DEDEADC0DE",
-    "fn_GetLocalPlayer": "0xDEADC0DEDEADC0DE",
-    "fn_GetAllPlayers": "0xDEADC0DEDEADC0DE",
-    "fn_GameUpdate": "0xDEADC0DEDEADC0DE",
-    "fn_WorldToScreen": "0xDEADC0DEDEADC0DE"
+    "il2cpp_resolve_icall":            "0xa1115a0",
+    "il2cpp_image_get_name":           "0xa1122ec",
+    "il2cpp_image_get_class":          "0xa112310",
+    "il2cpp_image_get_class_count":    "0xa1122f8",
+    "il2cpp_class_get_name":           "0xa111634",
+    "il2cpp_class_get_namespace":      "0xa111638",
+    "il2cpp_class_instance_size":      "0xa111644",
+    "il2cpp_method_get_return_type":   "UNKNOWN",
+    "il2cpp_method_get_param_count":   "UNKNOWN",
+    "il2cpp_class_get_methods":        "UNKNOWN",
+    "il2cpp_class_from_il2cpp_type":   "UNKNOWN",
+
+    "_note_klass": "klass_* e fn_* são resolvidos em runtime via ff_il2cpp_resolver. Valores abaixo são DESCONHECIDOS — resolver preenche em memória, não são necessários no JSON.",
+    "klass_PlayerInfo":      "RUNTIME",
+    "klass_GameController":  "RUNTIME",
+    "klass_WeaponController":"RUNTIME",
+    "fn_GetLocalPlayer":     "RUNTIME",
+    "fn_GetAllPlayers":      "RUNTIME",
+    "fn_GameUpdate":         "RUNTIME",
+    "fn_WorldToScreen":      "RUNTIME"
   },
+
   "st": {
-    "PlayerInfo_health": "0xDEADC0DEDEADC0DE",
-    "PlayerInfo_health_max": "0xDEADC0DEDEADC0DE",
-    "PlayerInfo_armor": "0xDEADC0DEDEADC0DE",
-    "PlayerInfo_team_id": "0xDEADC0DEDEADC0DE",
-    "PlayerInfo_is_dead": "0xDEADC0DEDEADC0DE",
-    "PlayerInfo_transform": "0xDEADC0DEDEADC0DE",
-    "PlayerInfo_name": "0xDEADC0DEDEADC0DE",
-    "PlayerInfo_weapon_controller": "0xDEADC0DEDEADC0DE",
-    "Transform_position": "0x90",
-    "WeaponController_currentAmmo": "0xDEADC0DEDEADC0DE",
-    "WeaponController_maxAmmo": "0xDEADC0DEDEADC0DE",
-    "WeaponController_reserveAmmo": "0xDEADC0DEDEADC0DE",
-    "CharController_moveSpeed": "0xDEADC0DEDEADC0DE",
-    "Camera_viewMatrix": "0xDEADC0DEDEADC0DE",
-    "Camera_projMatrix": "0xDEADC0DEDEADC0DE",
-    "Camera_fov": "0xDEADC0DEDEADC0DE"
+    "_note_st": "Offsets de instância dentro do objeto IL2CPP (Player herda de MonoBehaviour; header = 16 bytes). Todos são byte offsets relativos ao ponteiro do objeto. CANDIDATE = identificado por posição/tipo, não confirmado em-jogo. MEASURED_BY_NAME = campo com nome legível preservado.",
+
+    "_section_player_vital_stats": "=== PLAYER — STATS VITAIS (Player, COW.GamePlay, TypeDefIndex 31768) ===",
+
+    "PlayerInfo_health":     "0x0170",
+    "_note_health":          "CANDIDATE: campo[29] da classe Player, uint32 (System.UInt32), nome Beebyte=JGEAIKLHBGH. Cluster uint32[29..31] @ 0x0170/0x0174/0x0178 é a tripla HP/MaxHP/EP mais provável. Verificar: com HP cheio devem ler 200.",
+
+    "PlayerInfo_health_max": "0x0174",
+    "_note_health_max":      "CANDIDATE: campo[30], uint32, nome=NCCGMHNPCFH. Par com PlayerInfo_health.",
+
+    "PlayerInfo_ep":         "0x0178",
+    "_note_ep":              "CANDIDATE: campo[31], uint32, nome=NHIPEBMEIEF. EP (Energy Points) Free Fire = 0..50.",
+
+    "PlayerInfo_armor":      "0x01bc",
+    "_note_armor":           "CANDIDATE: campo[41], int32 (System.Int32), nome=ENJLDKMCPNF. Alternativa: campo[42] @ 0x01c0 (HOGOOMLEBGA). Os únicos i4 no range 0x01bc..0x01c0. Verificar: sem colete = 0, Colete Nível 3 ≈ 190.",
+
+    "PlayerInfo_armor_alt":  "0x01c0",
+    "_note_armor_alt":       "CANDIDATE: campo[42], int32, nome=HOGOOMLEBGA. Pode ser ArmorMax em vez de Armor corrente.",
+
+    "PlayerInfo_hp_float":   "0x02fc",
+    "_note_hp_float":        "CANDIDATE: campo[128], float (System.Single), nome=PBHPNOKABCP (contém 'HP'). Provavelmente HP interpolado/cached para UI, não o HP autoritativo do servidor.",
+
+    "PlayerInfo_ep_down_flag": "0x0331",
+    "_note_ep_down":           "MEASURED_BY_NAME: campo[139], bool, nome=IsPersonaEPDown (nome legível preservado).",
+
+    "PlayerInfo_ep_up_flag":   "0x0332",
+    "_note_ep_up":             "MEASURED_BY_NAME: campo[140], bool, nome=IsPersonaEPUp.",
+
+    "PlayerInfo_knockdown_dps": "0x03ac",
+    "_note_knockdown_dps":      "MEASURED_BY_NAME: campo[163], uint32, nome=m_KnockDownDamagePerSec.",
+
+    "_section_player_identity": "=== PLAYER — IDENTIDADE E TIME ===",
+
+    "PlayerInfo_team_id":    "0x0434",
+    "_note_team_id":         "MEASURED_BY_NAME: campo[183], uint32, nome=TeamModeID (TypeDefIndex 31768, herdado).",
+
+    "PlayerInfo_is_show_equip": "0x0438",
+    "_note_is_show_equip":      "MEASURED_BY_NAME: campo[184], bool, nome=IsShowEquip.",
+
+    "PlayerInfo_name":       "0x0498",
+    "_note_name":            "MEASURED_BY_NAME: campo[196], Il2CppString*, nome=OriginalNickName (nome legível herdado).",
+
+    "PlayerInfo_is_dead":    "0x0000",
+    "_note_is_dead":         "RUNTIME: resolvido via PlayerData.isDead (nome legível) em resolve_playerdata(). Valor 0 aqui indica 'deixar para o resolver preencher'. Verificar com Frida se isDead nunca é encontrado.",
+
+    "PlayerInfo_is_local":   "0x04a0",
+    "_note_is_local":        "MEASURED_BY_NAME: campo[197], bool, nome=IsClientBot. ATENÇÃO: IsClientBot=true significa BOT, não jogador local. Para identificar jogador local usar AvatarManager.GetLocalPlayer().",
+
+    "_section_player_movement": "=== PLAYER — MOVIMENTO ===",
+
+    "PlayerInfo_in_vehicle": "0x04f8",
+    "_note_in_vehicle":      "MEASURED_BY_NAME: campo[216], bool, nome=m_GetInVehicle.",
+
+    "CharController_moveSpeed": "0x0560",
+    "_note_speed":              "MEASURED_BY_NAME: campo[242], float, nome=Speed (Player direto, não PhysicalCCT).",
+
+    "PlayerInfo_aim_count":  "0x054c",
+    "_note_aim_count":       "MEASURED_BY_NAME: campo[240], uint32, nome=AimCount.",
+
+    "PlayerInfo_in_count":   "0x0540",
+    "_note_in_count":        "MEASURED_BY_NAME: campo[237], float, nome=InCount.",
+
+    "PlayerInfo_un_count":   "0x0544",
+    "_note_un_count":        "MEASURED_BY_NAME: campo[238], float, nome=UnCount.",
+
+    "PlayerInfo_a_count":    "0x0570",
+    "_note_a_count":         "MEASURED_BY_NAME: campo[245], float, nome=ACount.",
+
+    "PlayerInfo_jump_count": "0x025c",
+    "_note_jump_count":      "MEASURED_BY_NAME: campo[71], int32, nome=JumpCount.",
+
+    "PlayerInfo_interact_revive_id": "0x024c",
+    "_note_interact_revive_id": "MEASURED_BY_NAME: campo[67], uint32, nome=InteractingReviveBoxID.",
+
+    "_section_transform": "=== TRANSFORM / POSIÇÃO ===",
+
+    "Transform_position":    "0x60",
+    "_note_transform_pos":   "FALLBACK: valor padrão Unity 2021 arm64 (TransformAccess world position). NÃO medido neste binário. Confirmar com Frida: Memory.readFloat(player+offset_transform+0x60) deve ser Z do mapa.",
+
+    "PlayerInfo_transform":  "0x0000",
+    "_note_transform":       "RUNTIME: resolvido pelo resolver como primeiro campo referência (class/object) após header. Zero aqui; preenchido em memória pelo ff_il2cpp_resolver.",
+
+    "_section_weapon": "=== ARMA (VerticleGunController, COW.GamePlay, TypeDefIndex 35516) ===",
+
+    "WeaponController_currentAmmo": "RUNTIME",
+    "_note_current_ammo":           "RUNTIME: campo BulletsRemainingInMag — nome legível, resolvido pelo resolver em runtime.",
+
+    "WeaponController_maxAmmo":     "RUNTIME",
+    "_note_max_ammo":               "RUNTIME: campo BulletsPerMag — nome legível.",
+
+    "WeaponController_reserveAmmo": "RUNTIME",
+    "_note_reserve_ammo":           "RUNTIME: heurística — primeiro int32 após BulletsRemainingInMag.",
+
+    "WeaponController_reloadTime":  "RUNTIME",
+    "_note_reload_time":            "RUNTIME: campo ReloadTime — nome legível.",
+
+    "_section_camera": "=== CÂMERA ===",
+
+    "Camera_projMatrix":     "0x0000",
+    "_note_proj":            "RUNTIME: Unity 2021 não expõe worldToCameraMatrix como campo direto. ESP usa Camera.WorldToScreenPoint via il2cpp_runtime_invoke. Ver esp.c.",
+
+    "Camera_viewMatrix":     "0x0000",
+    "_note_view":            "RUNTIME: idem Camera_projMatrix.",
+
+    "_section_beebyte_names": "=== NOMES BEEBYTE CONFIRMADOS (para ff_il2cpp_resolver lookup por nome) ===",
+    "_beebyte_Player_HP":       "JGEAIKLHBGH",
+    "_beebyte_Player_MaxHP":    "NCCGMHNPCFH",
+    "_beebyte_Player_EP":       "NHIPEBMEIEF",
+    "_beebyte_Player_Armor":    "ENJLDKMCPNF",
+    "_beebyte_Player_ArmorAlt": "HOGOOMLEBGA",
+    "_beebyte_Player_HPFloat":  "PBHPNOKABCP",
+
+    "_section_metadata": "=== METADATA DE ANÁLISE ===",
+    "_ga_analysis": {
+      "file_size_hex":        "0x0c6ff590",
+      "text_va_start":        "0x00000000",
+      "data_const_va_start":  "0x0b1cc000",
+      "data_va_start":        "0x0b650000",
+      "linkedit_va_start":    "0x0c38c000",
+      "il2cpp_metareg_va":    "0x0b3fdc00",
+      "fieldoffsets_base_va": "0x0a45aa84",
+      "player_fieldoffsets_va":"0x0a54feb8",
+      "type_ptr_array_va":    "0x0b471f00",
+      "type_count":           103044,
+      "player_typedef_idx":   31768,
+      "player_field_start_gidx": 251149,
+      "player_direct_field_count": 181,
+      "player_total_field_count":  1689
+    }
   }
 }

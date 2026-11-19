@@ -45,15 +45,30 @@ bool ff_player_refresh(FF_Player *p) {
     if (!p || !ptr_valid(p->ptr)) return false;
     FF_StructOffsets *st = &g_offsets.st;
 
-    ff_read_field_f32(p->ptr, st->PlayerInfo_health,     &p->health);
-    ff_read_field_f32(p->ptr, st->PlayerInfo_health_max, &p->health_max);
-    ff_read_field_f32(p->ptr, st->PlayerInfo_armor,      &p->armor);
+    // HP/MaxHP/EP são uint32 neste build (Beebyte v31, campos[29..31] @ 0x0170..0x0178).
+    // Armor é int32 (campo[41] @ 0x01bc).
+    // Lemos em variáveis inteiras e convertemos para float para compatibilidade
+    // com o resto do overlay (barras de vida, comparações de distância etc.)
+    {
+        uint32_t hp = 0, hp_max = 0, ep = 0;
+        int32_t  arm = 0;
+        ff_read_field_u32(p->ptr, st->PlayerInfo_health,     &hp);
+        ff_read_field_u32(p->ptr, st->PlayerInfo_health_max, &hp_max);
+        ff_read_field_u32(p->ptr, st->PlayerInfo_ep,         &ep);
+        ff_read_field_i32(p->ptr, st->PlayerInfo_armor,      &arm);
+        p->health     = (float)hp;
+        p->health_max = (float)hp_max;
+        p->ep         = (float)ep;
+        p->armor      = (float)(arm >= 0 ? arm : 0);
+    }
     ff_read_field_i32(p->ptr, st->PlayerInfo_team_id,    &p->team_id);
     ff_read_field_bool(p->ptr, st->PlayerInfo_is_dead,   &p->is_dead);
 
-    // Plausibility: health fora do range razoável → objeto provavelmente inválido
+    // Plausibility: health fora do range razoável → objeto provavelmente inválido.
+    // Free Fire: HP máximo = 200 base + buff skill (máx ~300). EP máximo = 50.
     if (p->health_max > 0.0f &&
-        (p->health < -1.0f || p->health > p->health_max * 2.0f)) {
+        (p->health < 0.0f || p->health > 500.0f ||
+         p->health_max > 500.0f)) {
         return false;
     }
 

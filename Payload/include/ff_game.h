@@ -18,6 +18,11 @@ static inline bool ff_read_field_f32(uintptr_t obj, uint32_t field_off, float *o
     return ff_read_mem(obj + field_off, out, sizeof(float));
 }
 
+static inline bool ff_read_field_u32(uintptr_t obj, uint32_t field_off, uint32_t *out) {
+    if (!ptr_valid(obj) || field_off == (uint32_t)OFFSET_UNKNOWN) return false;
+    return ff_read_mem(obj + field_off, out, sizeof(uint32_t));
+}
+
 static inline bool ff_read_field_i32(uintptr_t obj, uint32_t field_off, int32_t *out) {
     if (!ptr_valid(obj) || field_off == (uint32_t)OFFSET_UNKNOWN) return false;
     return ff_read_mem(obj + field_off, out, sizeof(int32_t));
@@ -55,9 +60,10 @@ static inline bool ff_write_field_i32(uintptr_t obj, uint32_t field_off, int32_t
 typedef struct {
     uintptr_t ptr;       // endereço do objeto PlayerInfo no heap do Unity
     Vec3      position;  // posição world (atualizada em ff_player_refresh)
-    float     health;
-    float     health_max;
-    float     armor;
+    float     health;    // HP atual  — lido como uint32 @ 0x0170, convertido a float
+    float     health_max;// HP máximo — lido como uint32 @ 0x0174, convertido a float
+    float     ep;        // Energy Points/shield — uint32 @ 0x0178 (0..50)
+    float     armor;     // Durabilidade do colete — int32 @ 0x01bc, convertido a float
     int32_t   team_id;
     bool      is_dead;
     bool      is_local;
