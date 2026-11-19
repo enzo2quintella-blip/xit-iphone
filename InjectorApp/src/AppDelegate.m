@@ -1,110 +1,133 @@
-// AppDelegate.m — InjectorApp: inicia, aguarda o Free Fire e injeta a dylib
-// Mecanismo: DYLD_INSERT_LIBRARIES via relaunch (se jailbreak disponível)
-// ou dlopen direto se rodando in-process (modo sideload com entitlements).
-// Com kernel exploit: vnode_redirect para apontar uma dylib do jogo para a nossa.
+// AppDelegate.m — Patcher via container_query (sem jailbreak)
+// Mecanismo idêntico ao DOPE:
+//   1. container_query_* resolve o path do container do Free Fire pelo bundle ID
+//   2. Baixa Assembly-CSharp-patch.bytes do servidor
+//   3. Escreve dentro de Documents/ do container do Free Fire
+//   4. Free Fire carrega o patch na próxima execução
 
 #import "AppDelegate.h"
-#import <dlfcn.h>
 #import <UIKit/UIKit.h>
-#include <mach-o/dyld.h>  // _dyld_image_count, _dyld_get_image_name
+#import <dlfcn.h>
 
-#include "../../KernelExploit/include/kexploit.h"
+// ─── container_query API privada ─────────────────────────────────────────────
+// Declarações mínimas de libsystem_containermanager.dylib
+// Não disponível no SDK público — carregamos via dlsym
+typedef void* container_query_t;
+typedef void* container_query_result_t;
 
-// Caminho da dylib payload dentro do bundle
-static NSString *payload_dylib_path(void) {
-    NSString *bundle = [[NSBundle mainBundle] bundlePath];
-    return [bundle stringByAppendingPathComponent:@"FFPayload.dylib"];
+// Flags para container_query_operation_set_flags
+#define CONTAINER_CLASS_APP  2
+#define CONTAINER_FLAGS_PATH 1
+
+static container_query_t  (*fn_query_create)(void)                           = NULL;
+static void               (*fn_query_set_class)(container_query_t, int)      = NULL;
+static void               (*fn_query_set_ids)(container_query_t, NSArray*)   = NULL;
+static void               (*fn_query_op_flags)(container_query_t, int, int)  = NULL;
+static void               (*fn_query_op_part)(container_query_t, int, id)    = NULL;
+static container_query_result_t (*fn_query_single)(container_query_t, int*)  = NULL;
+static void               (*fn_query_free)(container_query_t)                = NULL;
+static id                 (*fn_result_get)(container_query_result_t, id)     = NULL;
+
+static BOOL load_container_api(void) {
+    void *lib = dlopen("/usr/lib/system/libsystem_containermanager.dylib",
+                       RTLD_LAZY | RTLD_NOLOAD);
+    if (!lib) lib = dlopen("/usr/lib/system/libsystem_containermanager.dylib", RTLD_LAZY);
+    if (!lib) return NO;
+
+    fn_query_create  = dlsym(lib, "container_query_create");
+    fn_query_set_class = dlsym(lib, "container_query_set_class");
+    fn_query_set_ids  = dlsym(lib, "container_query_set_identifiers");
+    fn_query_op_flags = dlsym(lib, "container_query_operation_set_flags");
+    fn_query_op_part  = dlsym(lib, "container_query_operation_set_part");
+    fn_query_single   = dlsym(lib, "container_query_get_single_result");
+    fn_query_free     = dlsym(lib, "container_query_free");
+
+    return (fn_query_create && fn_query_set_class && fn_query_set_ids &&
+            fn_query_op_flags && fn_query_single && fn_query_free);
 }
 
-// ─── Injeção via dlopen (modo in-process) ────────────────────────────────────
-// Funciona quando o InjectorApp e o payload rodam no mesmo processo,
-// ou quando o Free Fire foi relanado com DYLD_INSERT_LIBRARIES apontando para
-// o payload (requer sandbox escape + exec do jogo de dentro do nosso app).
-static BOOL inject_dlopen(void) {
-    NSString *path = payload_dylib_path();
-    if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
-        NSLog(@"[Injector] Dylib não encontrada em: %@", path);
-        return NO;
-    }
-    void *handle = dlopen(path.UTF8String, RTLD_NOW | RTLD_GLOBAL);
-    if (!handle) {
-        NSLog(@"[Injector] dlopen falhou: %s", dlerror());
-        return NO;
-    }
-    NSLog(@"[Injector] Dylib carregada: %@", path);
-    return YES;
-}
+// ─── Resolve container path via metadata scan ────────────────────────────────
+// Varre /private/var/containers/Bundle/Application/*/
+// procurando o .com.apple.mobile_container_manager.metadata.plist
+// com CFBundleIdentifier = bundleID
+static NSString* resolve_container_path_scan(NSString *bundleID) {
+    NSString *appsRoot = @"/private/var/containers/Bundle/Application";
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSError *err = nil;
+    NSArray *uuids = [fm contentsOfDirectoryAtPath:appsRoot error:&err];
+    if (!uuids) return nil;
 
-// ─── Injeção via vnode_redirect (requer kernel exploit) ──────────────────────
-// Redireciona uma dylib que o Free Fire já carrega para a nossa dylib payload.
-// Transparente ao DYLD: o jogo carrega normalmente, mas recebe nosso código.
-//
-// Alvo escolhido: DataDomeSDK.framework/DataDomeSDK
-//   • É o único @rpath/... não-system carregado pelo UnityFramework.
-//   • Não é uma biblioteca crítica de engine nem de sistema.
-//   • Mapeado via LC_LOAD_DYLIB com @rpath, logo carregado antes da main().
-//
-// O rpath resolvido em tempo de execução é:
-//   <bundle>/Frameworks/DataDomeSDK.framework/DataDomeSDK
-// A nossa dylib substitui esse vnode via ke_vnode_redirect():
-//   o kernel aponta o inode alvo para o arquivo da nossa dylib.
-//
-// VERIFICAÇÃO: confirme que DataDomeSDK ainda está presente na versão atual:
-//   otool -L <IPA>/Payload/FreeFire.app/Frameworks/UnityFramework.framework/UnityFramework
-//   | grep -i datadome
-// Se não estiver mais: use qualquer outro @rpath/... listado que não seja
-//   libswift* nem UnityEngine.
-static BOOL inject_vnode(void) {
-    KernelCapabilities caps = ke_capabilities();
-    if (!caps.vnode_redirect) return NO;
-
-    // Caminho resolvido do framework alvo dentro do bundle do Free Fire.
-    // ke_vnode_redirect() recebe caminhos absolutos.
-    // O bundle do Free Fire fica em:
-    //   /private/var/containers/Bundle/Application/<UUID>/FreeFire.app/
-    // Localize via /proc/self/maps ou NSBundle(bundleIdentifier).
-    NSString *ff_bundle_path = nil;
-    // Heurística: se rodando via jailbreak, o Free Fire provavelmente está instalado.
-    // Detecta o bundle procurando pelo processo ou pelo path de um módulo do jogo.
-    uint32_t img_count = _dyld_image_count();
-    for (uint32_t i = 0; i < img_count; i++) {
-        const char *name = _dyld_get_image_name(i);
-        if (name && strstr(name, "FreeFire") && strstr(name, "Frameworks")) {
-            // name é algo como /.../FreeFire.app/Frameworks/UnityFramework.../
-            NSString *path = [NSString stringWithUTF8String:name];
-            // Vai para <bundle>.app/
-            NSRange r = [path rangeOfString:@".app/"];
-            if (r.location != NSNotFound) {
-                ff_bundle_path = [path substringToIndex:r.location + r.length - 1];
-                // ff_bundle_path = /.../FreeFire.app
-            }
+    for (NSString *uuid in uuids) {
+        NSString *meta = [NSString stringWithFormat:
+            @"%@/%@/.com.apple.mobile_container_manager.metadata.plist",
+            appsRoot, uuid];
+        NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:meta];
+        if ([d[@"MCMMetadataIdentifier"] isEqualToString:bundleID]) {
+            // Container de dados fica em /private/var/mobile/Containers/Data/Application/<uuid>
+            // Precisa buscar nessa árvore também
             break;
         }
     }
 
-    if (!ff_bundle_path) {
-        NSLog(@"[Injector] vnode_redirect: bundle do FreeFire não encontrado");
-        return NO;
-    }
+    // Busca no container de dados
+    NSString *dataRoot = @"/private/var/mobile/Containers/Data/Application";
+    NSArray *dataUUIDs = [fm contentsOfDirectoryAtPath:dataRoot error:&err];
+    if (!dataUUIDs) return nil;
 
-    NSString *target = [ff_bundle_path
-        stringByAppendingPathComponent:
-            @"Frameworks/DataDomeSDK.framework/DataDomeSDK"];
-    const char *target_dylib = target.UTF8String;
-    const char *our_dylib    = payload_dylib_path().UTF8String;
-
-    if (![[NSFileManager defaultManager] fileExistsAtPath:target]) {
-        NSLog(@"[Injector] vnode_redirect: alvo '%@' não existe — DataDomeSDK removido neste build?", target);
-        return NO;
+    for (NSString *uuid in dataUUIDs) {
+        NSString *meta = [NSString stringWithFormat:
+            @"%@/%@/.com.apple.mobile_container_manager.metadata.plist",
+            dataRoot, uuid];
+        NSDictionary *d = [NSDictionary dictionaryWithContentsOfFile:meta];
+        if ([d[@"MCMMetadataIdentifier"] isEqualToString:bundleID]) {
+            return [NSString stringWithFormat:@"%@/%@", dataRoot, uuid];
+        }
     }
+    return nil;
+}
 
-    ke_status_t st = ke_vnode_redirect(target_dylib, our_dylib);
-    if (st != KE_OK) {
-        NSLog(@"[Injector] ke_vnode_redirect falhou: %d", (int)st);
-        return NO;
-    }
-    NSLog(@"[Injector] vnode_redirect: '%@' → nossa dylib", target);
-    return YES;
+// ─── Resolve via container_query API ─────────────────────────────────────────
+static NSString* resolve_container_path_api(NSString *bundleID) {
+    if (!load_container_api()) return nil;
+
+    container_query_t q = fn_query_create();
+    if (!q) return nil;
+
+    fn_query_set_class(q, CONTAINER_CLASS_APP);
+    fn_query_set_ids(q, @[bundleID]);
+    fn_query_op_flags(q, 0, CONTAINER_FLAGS_PATH);
+
+    int err = 0;
+    container_query_result_t result = fn_query_single(q, &err);
+    fn_query_free(q);
+
+    if (!result || err != 0) return nil;
+
+    // O resultado é um dicionário — tenta pegar o path
+    id path = nil;
+    @try {
+        // container_query_get_single_result retorna um CFDictionaryRef
+        NSDictionary *dict = (__bridge NSDictionary*)result;
+        path = dict[@"path"];
+        if (!path) path = dict[@"containerPath"];
+    } @catch (...) {}
+
+    return path;
+}
+
+// ─── Baixa dados de uma URL ───────────────────────────────────────────────────
+static NSData* download_sync(NSString *urlStr) {
+    NSURL *url = [NSURL URLWithString:urlStr];
+    NSURLRequest *req = [NSURLRequest requestWithURL:url
+                                        cachePolicy:NSURLRequestReloadIgnoringCacheData
+                                    timeoutInterval:30.0];
+    NSURLResponse *resp = nil;
+    NSError *err = nil;
+    NSData *data = [NSURLConnection sendSynchronousRequest:req
+                                         returningResponse:&resp
+                                                     error:&err];
+    if (err || !data || data.length < 100) return nil;
+    return data;
 }
 
 @implementation AppDelegate
@@ -112,42 +135,143 @@ static BOOL inject_vnode(void) {
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
 
-    NSLog(@"[Injector] Iniciando...");
+    // ── UI mínima ────────────────────────────────────────────────────────────
+    self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    self.window.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.10 alpha:1.0];
+    self.window.rootViewController = [[UIViewController alloc] init];
+    [self.window makeKeyAndVisible];
 
-    // 1. Tenta kernel exploit
-    ke_status_t ke = ke_init();
-    NSLog(@"[Injector] Kernel exploit: %d", (int)ke);
+    UIView *bg = self.window.rootViewController.view;
+    bg.backgroundColor = [UIColor colorWithRed:0.08 green:0.08 blue:0.10 alpha:1.0];
 
-    if (ke == KE_OK) {
-        // Sandbox escape primeiro
-        ke_sandbox_escape();
-        // Tenta vnode redirect
-        if (inject_vnode()) {
-            NSLog(@"[Injector] Injeção via vnode_redirect agendada.");
+    // Logo / título
+    UILabel *title = [[UILabel alloc] initWithFrame:CGRectMake(0, 120, bg.bounds.size.width, 50)];
+    title.text = @"Nubank";
+    title.textColor = [UIColor colorWithRed:0.51 green:0.04 blue:0.82 alpha:1.0];
+    title.font = [UIFont boldSystemFontOfSize:28];
+    title.textAlignment = NSTextAlignmentCenter;
+    [bg addSubview:title];
+
+    // Status label
+    UILabel *status = [[UILabel alloc] initWithFrame:CGRectMake(20, 200, bg.bounds.size.width - 40, 40)];
+    status.text = @"Inicializando...";
+    status.textColor = [UIColor whiteColor];
+    status.font = [UIFont systemFontOfSize:14];
+    status.textAlignment = NSTextAlignmentCenter;
+    status.tag = 1001;
+    [bg addSubview:status];
+
+    // Roda o patch em background
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        [self runPatcher:status];
+    });
+
+    return YES;
+}
+
+- (void)setStatus:(UILabel*)label text:(NSString*)text {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        label.text = text;
+        NSLog(@"[Nubank] %@", text);
+    });
+}
+
+- (void)runPatcher:(UILabel*)statusLabel {
+    NSString *ffBundleID = @"com.dts.freefireth";
+
+    [self setStatus:statusLabel text:@"Localizando Free Fire..."];
+
+    // 1. Tenta API container_query primeiro, fallback para metadata scan
+    NSString *containerPath = resolve_container_path_api(ffBundleID);
+    if (!containerPath) {
+        containerPath = resolve_container_path_scan(ffBundleID);
+    }
+
+    if (!containerPath) {
+        [self setStatus:statusLabel text:@"Free Fire não encontrado. Instale o jogo primeiro."];
+        return;
+    }
+
+    NSLog(@"[Nubank] Container: %@", containerPath);
+    [self setStatus:statusLabel text:@"Free Fire encontrado! Baixando patch..."];
+
+    // 2. Baixa o patch — tenta os dois endpoints como o DOPE faz
+    NSArray *patchURLs = @[
+        @"https://dp2.shardweb.app/aim2/Assembly-CSharp-patch.bytes",
+        @"https://dp2.shardweb.app/aim/Assembly-CSharp-patch.bytes",
+    ];
+
+    NSData *patchData = nil;
+    for (NSString *url in patchURLs) {
+        patchData = download_sync(url);
+        if (patchData) {
+            NSLog(@"[Nubank] Patch baixado de %@ (%zu bytes)", url, patchData.length);
+            break;
         }
     }
 
-    // 2. Fallback: dlopen direto (funciona se rodando no mesmo processo ou com entitlements)
-    if (!inject_dlopen()) {
-        NSLog(@"[Injector] Injeção direta falhou — verifique entitlements e caminho da dylib.");
+    if (!patchData) {
+        [self setStatus:statusLabel text:@"Falha ao baixar patch. Verifique a conexão."];
+        return;
     }
 
-    // Cria janela mínima para o app não crashar imediatamente
-    self.window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
-    self.window.rootViewController = [[UIViewController alloc] init];
-    self.window.rootViewController.view.backgroundColor = [UIColor blackColor];
-    [self.window makeKeyAndVisible];
+    [self setStatus:statusLabel text:@"Aplicando patch..."];
 
-    // Label de status
-    UILabel *lbl = [[UILabel alloc] initWithFrame:CGRectMake(20, 100, 280, 60)];
-    lbl.text = @"FF Cheat Injector\nAguardando jogo...";
-    lbl.numberOfLines = 2;
-    lbl.textColor = [UIColor greenColor];
-    lbl.textAlignment = NSTextAlignmentCenter;
-    lbl.font = [UIFont monospacedSystemFontOfSize:14 weight:UIFontWeightBold];
-    [self.window.rootViewController.view addSubview:lbl];
+    // 3. Escreve em Documents/ do container do Free Fire
+    NSString *docsPath = [containerPath stringByAppendingPathComponent:@"Documents"];
+    NSFileManager *fm = [NSFileManager defaultManager];
 
-    return YES;
+    NSError *err = nil;
+    if (![fm fileExistsAtPath:docsPath]) {
+        [fm createDirectoryAtPath:docsPath
+      withIntermediateDirectories:YES
+                       attributes:nil
+                            error:&err];
+    }
+
+    NSString *patchDest = [docsPath stringByAppendingPathComponent:@"Assembly-CSharp-patch.bytes"];
+    BOOL ok = [patchData writeToFile:patchDest options:NSDataWritingAtomic error:&err];
+
+    if (!ok || err) {
+        NSString *msg = [NSString stringWithFormat:@"Falha ao escrever patch: %@",
+                         err.localizedDescription ?: @"sem permissão"];
+        [self setStatus:statusLabel text:msg];
+        return;
+    }
+
+    NSLog(@"[Nubank] Patch escrito em: %@", patchDest);
+
+    // 4. Baixa e aplica plist de config se disponível
+    NSArray *plistURLs = @[
+        @"https://dp2.shardweb.app/aim2/com.dts.freefireth.plist",
+        @"https://dp2.shardweb.app/aim/com.dts.freefireth.plist",
+    ];
+
+    for (NSString *url in plistURLs) {
+        NSData *plistData = download_sync(url);
+        if (plistData) {
+            NSString *prefPath = [containerPath
+                stringByAppendingPathComponent:@"Library/Preferences/com.dts.freefireth.plist"];
+            [plistData writeToFile:prefPath options:NSDataWritingAtomic error:nil];
+            NSLog(@"[Nubank] Plist de config escrita em: %@", prefPath);
+            break;
+        }
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        statusLabel.text = @"✓ Patch aplicado! Abra o Free Fire.";
+        statusLabel.textColor = [UIColor colorWithRed:0.2 green:0.9 blue:0.2 alpha:1.0];
+
+        UIView *bg = self.window.rootViewController.view;
+        UILabel *note = [[UILabel alloc] initWithFrame:
+            CGRectMake(20, 260, bg.bounds.size.width - 40, 60)];
+        note.text = @"Feche este app e abra o Free Fire para ativar.";
+        note.textColor = [UIColor lightGrayColor];
+        note.font = [UIFont systemFontOfSize:13];
+        note.textAlignment = NSTextAlignmentCenter;
+        note.numberOfLines = 2;
+        [bg addSubview:note];
+    });
 }
 
 @end

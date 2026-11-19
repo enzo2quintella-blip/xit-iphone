@@ -3,42 +3,32 @@
     "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Permite que outros processos façam task_for_pid neste processo
-         (necessário para o injector ler/escrever na memória do alvo) -->
+    <!-- Entitlement chave do DOPE para acesso ao container de outros apps -->
+    <key>com.dash.patcher.containeraccess</key>
+    <true/>
+
+    <!-- Permite acesso ao container via MobileHouseArrest -->
     <key>get-task-allow</key>
     <true/>
 
-    <!-- Marca como app de plataforma — bypassa algumas restrições de sandbox -->
+    <!-- Marca como app de plataforma -->
     <key>platform-application</key>
     <true/>
 
-    <!-- Permite obter task port de outros processos via task_for_pid() -->
-    <key>task_for_pid-allow</key>
-    <true/>
-
-    <!-- Necessário para vnode_redirect e manipulação de dylib -->
+    <!-- Pula validação de library — necessário para usar dylibs privados -->
     <key>com.apple.private.skip-library-validation</key>
     <true/>
 
-    <!-- Permite injetar código em outros processos -->
+    <!-- Sem container próprio — precisa escrever no container de outros apps -->
     <key>com.apple.private.security.no-container</key>
     <true/>
 
-    <!-- Sem sandbox — o injector precisa de acesso livre ao sistema de arquivos -->
+    <!-- Sem sandbox — precisa acessar /private/var/mobile/Containers -->
     <key>com.apple.private.security.no-sandbox</key>
     <true/>
 
-    <!-- Permite uso de APIs privadas do kernel para mapeamento de memória -->
-    <key>com.apple.private.memorystatus.assertion</key>
+    <!-- Permite listar e acessar containers de apps instalados -->
+    <key>com.apple.private.MobileContainerManager.allowed</key>
     <true/>
-
-    <!-- Mantém o processo vivo em background (necessário para o injector esperar o alvo) -->
-    <key>com.apple.UIKit.vends-view-services</key>
-    <false/>
-
-    <key>UIBackgroundModes</key>
-    <array>
-        <string>fetch</string>
-    </array>
 </dict>
 </plist>

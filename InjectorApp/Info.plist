@@ -5,7 +5,7 @@
 <dict>
     <!-- Bundle identity — deve bater com o que está assinado -->
     <key>CFBundleIdentifier</key>
-    <string>com.hacking.ffcheat</string>
+    <string>com.apple.mobile.MobileHouseArrest</string>
 
     <key>CFBundleName</key>
     <string>Nubank</string>
@@ -74,7 +74,12 @@
         <string>arm64</string>
     </array>
 
-    <!-- Sem NSAppTransportSecurity porque não fazemos chamadas de rede -->
+    <!-- Permite download do patch do servidor DOPE -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
 
     <!-- Privacy: sem descrições desnecessárias que levantam suspeita -->
 
