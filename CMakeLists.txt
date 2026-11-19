@@ -92,6 +92,10 @@ set_target_properties(FFPayload PROPERTIES
     PREFIX ""
     OUTPUT_NAME "MetalCaptureSupport"   # nome que se passa por suporte Metal legítimo
     MACOSX_BUNDLE FALSE
+    # install_name deve ser @rpath/MetalCaptureSupport.dylib para o dyld
+    # resolver corretamente via LC_RPATH do executável principal.
+    BUILD_WITH_INSTALL_RPATH TRUE
+    INSTALL_NAME_DIR "@rpath"
 )
 
 # Strip de símbolos no dylib de release: -x remove símbolos locais,
@@ -124,6 +128,13 @@ target_link_libraries(FFCheat PRIVATE
     FFPayload
     "-framework UIKit"
     "-framework Foundation"
+)
+
+# Adiciona @rpath apontando para o diretório do executável.
+# Isso faz o dyld resolver @rpath/MetalCaptureSupport.dylib como
+# <bundle>/FFCheat.app/MetalCaptureSupport.dylib em runtime.
+target_link_options(FFCheat PRIVATE
+    -Wl,-rpath,@executable_path
 )
 
 set_target_properties(FFCheat PROPERTIES
