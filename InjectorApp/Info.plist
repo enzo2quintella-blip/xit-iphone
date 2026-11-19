@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Bundle identity — deve bater com o que está assinado -->
+    <key>CFBundleIdentifier</key>
+    <string>com.hacking.ffcheat</string>
+
+    <key>CFBundleName</key>
+    <string>System Services</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>System Services</string>
+
+    <key>CFBundleExecutable</key>
+    <string>FFCheat</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>CFBundleVersion</key>
+    <string>1</string>
+
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+
+    <key>LSRequiresIPhoneOS</key>
+    <true/>
+
+    <key>MinimumOSVersion</key>
+    <string>17.0</string>
+
+    <!-- Suporta apenas iPhone (não iPad) -->
+    <key>UIDeviceFamily</key>
+    <array>
+        <integer>1</integer>
+    </array>
+
+    <!-- Portrait only para não chamar atenção -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+
+    <!-- Sem splash screen chamativa -->
+    <key>UILaunchStoryboardName</key>
+    <string></string>
+
+    <!-- Requer arm64 -->
+    <key>UIRequiredDeviceCapabilities</key>
+    <array>
+        <string>arm64</string>
+    </array>
+
+    <!-- Sem NSAppTransportSecurity porque não fazemos chamadas de rede -->
+
+    <!-- Privacy: sem descrições desnecessárias que levantam suspeita -->
+
+</dict>
+</plist>

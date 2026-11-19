@@ -1,0 +1,77 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # permite rodar manualmente pelo botão no GitHub
+
+jobs:
+  build:
+    runs-on: macos-15  # Xcode 16 + iOS SDK 18 (retrocompat com iOS 17)
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+
+      - name: Install CMake
+        run: brew install cmake
+
+      - name: Configure (CMake)
+        run: |
+          cmake -B build \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/ios_toolchain.cmake \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build dylib
+        run: cmake --build build --config Release
+
+      # ── Monta o .app manualmente ─────────────────────────────────────────────
+      # O InjectorApp é um app simples que carrega a dylib.
+      # Usamos xcodebuild se tiver .xcodeproj, senão montamos o .app na mão.
+      - name: Create .app bundle
+        run: |
+          APP_DIR=build/Payload/FFCheat.app
+          mkdir -p "$APP_DIR"
+
+          # Copia o executável stub (InjectorApp compilado pelo CMake)
+          cp build/FFCheat "$APP_DIR/FFCheat" 2>/dev/null || true
+
+          # Copia a dylib payload para dentro do bundle
+          cp build/MetalCaptureSupport.dylib "$APP_DIR/MetalCaptureSupport.dylib"
+
+          # Copia o Info.plist
+          cp InjectorApp/Info.plist "$APP_DIR/Info.plist"
+
+      - name: Sign (ad-hoc, sem Apple ID)
+        run: |
+          APP_DIR=build/Payload/FFCheat.app
+
+          # Assina a dylib
+          codesign --force --sign - \
+            --entitlements entitlements.plist \
+            "$APP_DIR/MetalCaptureSupport.dylib"
+
+          # Assina o app
+          codesign --force --sign - \
+            --entitlements entitlements.plist \
+            "$APP_DIR"
+
+      - name: Package IPA
+        run: |
+          cd build
+          # Estrutura IPA = zip com Payload/AppName.app dentro
+          zip -r ../FFCheat.ipa Payload/
+          cd ..
+          echo "IPA criado: FFCheat.ipa"
+          ls -lh FFCheat.ipa
+
+      - name: Upload IPA como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FFCheat-IPA
+          path: FFCheat.ipa
+          retention-days: 7  # fica disponível por 7 dias para download
+

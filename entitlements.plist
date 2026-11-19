@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Permite que outros processos façam task_for_pid neste processo
+         (necessário para o injector ler/escrever na memória do alvo) -->
+    <key>get-task-allow</key>
+    <true/>
+
+    <!-- Marca como app de plataforma — bypassa algumas restrições de sandbox -->
+    <key>platform-application</key>
+    <true/>
+
+    <!-- Permite obter task port de outros processos via task_for_pid() -->
+    <key>task_for_pid-allow</key>
+    <true/>
+
+    <!-- Necessário para vnode_redirect e manipulação de dylib -->
+    <key>com.apple.private.skip-library-validation</key>
+    <true/>
+
+    <!-- Permite injetar código em outros processos -->
+    <key>com.apple.private.security.no-container</key>
+    <true/>
+
+    <!-- Sem sandbox — o injector precisa de acesso livre ao sistema de arquivos -->
+    <key>com.apple.private.security.no-sandbox</key>
+    <true/>
+
+    <!-- Permite uso de APIs privadas do kernel para mapeamento de memória -->
+    <key>com.apple.private.memorystatus.assertion</key>
+    <true/>
+
+    <!-- Mantém o processo vivo em background (necessário para o injector esperar o alvo) -->
+    <key>com.apple.UIKit.vends-view-services</key>
+    <false/>
+
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+    </array>
+</dict>
+</plist>

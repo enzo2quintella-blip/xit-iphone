@@ -1,0 +1,73 @@
+{
+  "_comment": "Template de config de offsets. Copie para offsets_<BUILD_UUID>.json e preencha os valores.",
+  "_how_to_find": {
+    "build_uuid": "python3 -c \"import struct,sys; d=open('GameAssembly.dylib','rb').read(); i=d.find(b'\\x1b\\x00\\x00\\x00'); h=d[i+8:i+24].hex(); print(f'{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}')\"",
+    "GameAssembly_exports": "Todos il2cpp_* são exports diretos — use 'nm -gU GameAssembly.dylib | grep il2cpp'",
+    "klass_*": "Il2CppDumper → script.json → procura 'PlayerInfo' → pega 'Address' (é o RVA do Il2CppClass*)",
+    "fn_*": "Il2CppDumper → dump.cs → busca classe e método → pega o RVA no comentário '// RVA: 0x...'",
+    "struct_fields": "Il2CppDumper → dump.cs → no bloco da classe, cada campo tem '// 0xOFFSET' antes da declaração"
+  },
+
+  "build_uuid": "PREENCHA-COM-UUID-DO-GAMEASSEMBLY",
+  "game_version": [0, 0, 0],
+
+  "ga": {
+    "_comment": "RVAs dentro de GameAssembly.dylib. EXPORT = resolvido automaticamente via dlsym.",
+    "il2cpp_domain_get":                  "EXPORT",
+    "il2cpp_domain_get_assemblies":       "EXPORT",
+    "il2cpp_assembly_get_image":          "EXPORT",
+    "il2cpp_class_from_name":             "EXPORT",
+    "il2cpp_class_get_method_from_name":  "EXPORT",
+    "il2cpp_class_get_field_from_name":   "EXPORT",
+    "il2cpp_field_get_offset":            "EXPORT",
+    "il2cpp_field_static_get_value":      "EXPORT",
+    "il2cpp_field_static_set_value":      "EXPORT",
+    "il2cpp_object_new":                  "EXPORT",
+    "il2cpp_runtime_invoke":              "EXPORT",
+    "il2cpp_string_new":                  "EXPORT",
+
+    "klass_PlayerInfo":       "0xDEADC0DEDEADC0DE",
+    "klass_GameController":   "0xDEADC0DEDEADC0DE",
+    "klass_WeaponController": "0xDEADC0DEDEADC0DE",
+    "klass_BulletControl":    "0xDEADC0DEDEADC0DE",
+    "klass_VehicleControl":   "0xDEADC0DEDEADC0DE",
+    "klass_AntiCheat":        "0xDEADC0DEDEADC0DE",
+
+    "fn_GetLocalPlayer":      "0xDEADC0DEDEADC0DE",
+    "fn_GetAllPlayers":       "0xDEADC0DEDEADC0DE",
+    "fn_WorldToScreen":       "0xDEADC0DEDEADC0DE",
+    "fn_GameUpdate":          "0xDEADC0DEDEADC0DE"
+  },
+
+  "st": {
+    "_comment": "Offsets de campo DENTRO das structs IL2CPP (bytes, como em dump.cs '// 0xOFFSET')",
+    "PlayerInfo_health":             "0xDEADC0DE",
+    "PlayerInfo_health_max":         "0xDEADC0DE",
+    "PlayerInfo_armor":              "0xDEADC0DE",
+    "PlayerInfo_name":               "0xDEADC0DE",
+    "PlayerInfo_team_id":            "0xDEADC0DE",
+    "PlayerInfo_is_dead":            "0xDEADC0DE",
+    "PlayerInfo_is_local":           "0xDEADC0DE",
+    "PlayerInfo_transform":          "0xDEADC0DE",
+    "PlayerInfo_bone_root":          "0xDEADC0DE",
+    "PlayerInfo_weapon_controller":  "0xDEADC0DE",
+
+    "Transform_position":     "0x90",
+    "Transform_rotation":     "0xDEADC0DE",
+
+    "WeaponController_currentAmmo":  "0xDEADC0DE",
+    "WeaponController_maxAmmo":      "0xDEADC0DE",
+    "WeaponController_reserveAmmo":  "0xDEADC0DE",
+    "WeaponController_reloadTime":   "0xDEADC0DE",
+    "WeaponController_spreadFactor": "0xDEADC0DE",
+
+    "CharController_moveSpeed":      "0xDEADC0DE",
+
+    "GameController_instance":    "0xDEADC0DE",
+    "GameController_allPlayers":  "0xDEADC0DE",
+    "GameController_gamePhase":   "0xDEADC0DE",
+
+    "Camera_projMatrix":  "0xDEADC0DE",
+    "Camera_viewMatrix":  "0xDEADC0DE"
+  }
+}
