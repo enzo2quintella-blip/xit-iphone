@@ -59,7 +59,7 @@ add_library(FFPayload SHARED
     ${PAYLOAD_DIR}/src/ff_camera.c
     ${PAYLOAD_DIR}/src/hooks.c
     ${PAYLOAD_DIR}/src/antidetect.c
-    ${PAYLOAD_DIR}/src/payload_main.c
+    ${PAYLOAD_DIR}/src/payload_main.m
     ${PAYLOAD_DIR}/src/overlay.m
     ${PAYLOAD_DIR}/features/esp.c
     ${PAYLOAD_DIR}/features/aimbot.c
