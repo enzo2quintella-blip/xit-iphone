@@ -29,15 +29,34 @@ jobs:
         run: cmake --build build --config Release
 
       # ── Monta o .app manualmente ─────────────────────────────────────────────
-      # O InjectorApp é um app simples que carrega a dylib.
-      # Usamos xcodebuild se tiver .xcodeproj, senão montamos o .app na mão.
+      # CMake com MACOSX_BUNDLE gera FFCheat em build/FFCheat.app/Contents/MacOS/FFCheat
+      # (estrutura macOS). Para iOS o IPA precisa de Payload/FFCheat.app/FFCheat flat.
+      # Localizamos o executável onde o CMake o colocou e copiamos para a estrutura iOS.
       - name: Create .app bundle
         run: |
           APP_DIR=build/Payload/FFCheat.app
           mkdir -p "$APP_DIR"
 
-          # Copia o executável stub (InjectorApp compilado pelo CMake)
-          cp build/FFCheat "$APP_DIR/FFCheat" 2>/dev/null || true
+          # Localiza o executável gerado pelo CMake (bundle macOS-style ou flat)
+          EXE=""
+          if [ -f "build/FFCheat.app/Contents/MacOS/FFCheat" ]; then
+            EXE="build/FFCheat.app/Contents/MacOS/FFCheat"
+          elif [ -f "build/FFCheat" ]; then
+            EXE="build/FFCheat"
+          else
+            # Fallback: busca recursivo
+            EXE=$(find build -name "FFCheat" -type f | grep -v '\.app/Payload' | head -1)
+          fi
+
+          if [ -z "$EXE" ]; then
+            echo "ERRO: executável FFCheat não encontrado em build/"
+            find build -type f -name "FFCheat*" || true
+            exit 1
+          fi
+
+          echo "Executável encontrado: $EXE"
+          cp "$EXE" "$APP_DIR/FFCheat"
+          chmod +x "$APP_DIR/FFCheat"
 
           # Copia a dylib payload para dentro do bundle
           cp build/MetalCaptureSupport.dylib "$APP_DIR/MetalCaptureSupport.dylib"
@@ -45,16 +64,24 @@ jobs:
           # Copia o Info.plist
           cp InjectorApp/Info.plist "$APP_DIR/Info.plist"
 
+          echo "Conteúdo do bundle:"
+          ls -lh "$APP_DIR/"
+
       - name: Sign (ad-hoc, sem Apple ID)
         run: |
           APP_DIR=build/Payload/FFCheat.app
+
+          # Assina o executável primeiro (deve vir antes do bundle)
+          codesign --force --sign - \
+            --entitlements entitlements.plist \
+            "$APP_DIR/FFCheat"
 
           # Assina a dylib
           codesign --force --sign - \
             --entitlements entitlements.plist \
             "$APP_DIR/MetalCaptureSupport.dylib"
 
-          # Assina o app
+          # Assina o bundle por último
           codesign --force --sign - \
             --entitlements entitlements.plist \
             "$APP_DIR"
